@@ -158,6 +158,7 @@ describe('extractLicensedArchive', () => {
     sinon.stub(fs.promises, 'access').resolves();
     sinon.stub(fs.promises, 'unlink').resolves();
     sinon.stub(exec, 'exec').resolves();
+    sinon.stub(exec, 'getExecOutput').resolves({ stdout: './licensed\n' });
     sinon.stub(io, 'which').resolves('testTar');
   });
 
@@ -193,9 +194,46 @@ describe('extractLicensedArchive', () => {
 
     expect(exec.exec.callCount).toEqual(1);
     expect(exec.exec.getCall(0).args).toEqual([
-      'sudo testTar',
-      ['xzv', '-f', archivePath, '-C', 'path/to/licensed', './licensed']
+      'sudo',
+      ['testTar', 'xzv', '-f', archivePath, '-C', 'path/to/licensed', './licensed']
     ]);
+  });
+
+  it('validates archive contents before extraction', async () => {
+    await installer.extractLicensedArchive(archivePath, 'path/to/licensed');
+
+    expect(exec.getExecOutput.callCount).toEqual(1);
+    expect(exec.getExecOutput.getCall(0).args).toEqual(['testTar', ['tzf', archivePath]]);
+  });
+
+  it('rejects archive with path traversal', async () => {
+    exec.getExecOutput.resolves({ stdout: '../etc/malicious\n./licensed\n' });
+
+    const promise = installer.extractLicensedArchive(archivePath, 'path/to/licensed');
+    await expect(promise).rejects.toThrow('Archive contains unsafe path: ../etc/malicious');
+    expect(exec.exec.callCount).toEqual(0);
+  });
+
+  it('rejects archive with absolute path', async () => {
+    exec.getExecOutput.resolves({ stdout: '/etc/malicious\n./licensed\n' });
+
+    const promise = installer.extractLicensedArchive(archivePath, 'path/to/licensed');
+    await expect(promise).rejects.toThrow('Archive contains unsafe path: /etc/malicious');
+    expect(exec.exec.callCount).toEqual(0);
+  });
+
+  it('accepts archive with extra safe entries', async () => {
+    exec.getExecOutput.resolves({ stdout: './\n./meta/\n./meta/LICENSE\n./licensed\n' });
+
+    await installer.extractLicensedArchive(archivePath, 'path/to/licensed');
+    expect(exec.exec.callCount).toEqual(1);
+  });
+
+  it('accepts valid archive with bare licensed entry', async () => {
+    exec.getExecOutput.resolves({ stdout: 'licensed\n' });
+
+    await installer.extractLicensedArchive(archivePath, 'path/to/licensed');
+    expect(exec.exec.callCount).toEqual(1);
   });
 });
 

@@ -90,11 +90,30 @@ async function downloadLicensedArchive(github, asset) {
 
 async function extractLicensedArchive(archive, installDir) {
   try {
-    let tar = await io.which('tar', true);
+    const tar = await io.which('tar', true);
+
+    // Validate archive contents before extraction
+    // The tar command below only extracts ./licensed, but we check all entries
+    // to reject archives with path traversal or absolute paths before any extraction.
+    const { stdout } = await exec.getExecOutput(tar, ['tzf', archive]);
+    const entries = stdout.trim().split('\n').filter(e => e.length > 0);
+    for (const entry of entries) {
+      // Use posix normalize — tar entries are always POSIX paths,
+      // even when running on Windows.
+      const normalized = path.posix.normalize(entry);
+      if (normalized.startsWith('/') || normalized.includes('..')) {
+        throw new Error(`Archive contains unsafe path: ${entry}`);
+      }
+    }
+
+    // Extract validated archive
+    let cmd = tar;
+    const args = ['xzv', '-f', archive, '-C', installDir, './licensed'];
     await fs.promises.access(installDir, fs.constants.W_OK).catch(() => {
-      tar = `sudo ${tar}`
+      cmd = 'sudo';
+      args.unshift(tar);
     });
-    await exec.exec(tar, ['xzv', '-f', archive, '-C', installDir, './licensed']);
+    await exec.exec(cmd, args);
   } finally {
     await fs.promises.unlink(archive);
   }
