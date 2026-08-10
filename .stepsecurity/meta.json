@@ -1,0 +1,18 @@
+{
+   "schema_version": "1",
+   "onboarding_type": "copied",
+   "archived": false,
+   "maintained_action_name": "step-security/setup-licensed",
+   "upstream_full_repo_name": "licensee/setup-licensed",
+   "action_type": "node",
+   "last_release": {
+     "tag_name": "v1.3.2",
+     "created_at": "2026-04-28T11:16:24Z",
+     "published_at": "2026-04-29T22:23:40Z"
+   },
+   "sync": {
+     "ignore_presets": [
+       "defaults_v1"
+     ]
+   }
+ }
